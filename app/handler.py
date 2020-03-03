@@ -17,11 +17,10 @@ from rasterio.session import AWSSession
 
 from rio_tiler.mercator import get_zooms
 from rio_tiler.profiles import img_profiles
-from rio_tiler.errors import TileOutsideBounds
 
 from cog_tiler import cmap
 from cog_tiler import utils
-from cog_tiler.tiler import cogTiler
+from cog_tiler.cogeo import CogeoReader
 
 from .common import drivers, mimetype
 
@@ -75,7 +74,7 @@ def metadata_handler(
         histogram_range = tuple(map(float, histogram_range.split(",")))
 
     with rasterio.Env(aws_session):
-        with cogTiler(url) as cog:
+        with CogeoReader(url) as cog:
             meta = cog.metadata(
                 pmin,
                 pmax,
@@ -101,7 +100,7 @@ def metadata_handler(
 def bounds_handler(url: str) -> Tuple[str, str, str]:
     """Handle /bounds requests."""
     with rasterio.Env(aws_session):
-        with cogTiler(url) as cog:
+        with CogeoReader(url) as cog:
             bounds = cog.bounds
 
     meta = dict(bounds=bounds, url=url)
@@ -229,13 +228,9 @@ def tile_handler(
     colormap = cmap.get_colormap(color_map) if color_map else None
 
     with rasterio.Env(aws_session):
-        with cogTiler(url) as cog:
-            if not cog.tile_exists(x, y, z):
-                raise TileOutsideBounds(f"Tile {z}/{x}/{y} is outside image bounds")
-
+        with CogeoReader(url) as cog:
             if expression is not None:
                 tile, mask = cog.expression(x, y, z, expression, **tile_params)
-
             else:
                 tile, mask = cog.tile(x, y, z, indexes=indexes, **tile_params)
 
@@ -315,10 +310,7 @@ def raw_tile(
     )
 
     with rasterio.Env(aws_session):
-        with cogTiler(url) as cog:
-            if not cog.tile_exists(x, y, z):
-                raise TileOutsideBounds(f"Tile {z}/{x}/{y} is outside image bounds")
-
+        with cogeoReader(url) as cog:
             content = cog.raw(x, y, z, indexes=indexes, **tile_params)
 
     return ("OK", "image/tiff", content)
